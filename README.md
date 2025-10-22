@@ -103,8 +103,9 @@ A responsive, modern website for MarGav Solar, a UK-based energy consultancy fir
 ### Installation
 
 1. Clone or download the project files
-2. Open `index.html` in a web browser
-3. For development, use a local server:
+2. **IMPORTANT:** Copy `config.example.js` to `config.js` and add your EmailJS credentials
+3. Open `index.html` in a web browser
+4. For development, use a local server:
 
    ```bash
    # Using Python
@@ -116,6 +117,18 @@ A responsive, modern website for MarGav Solar, a UK-based energy consultancy fir
    # Using PHP
    php -S localhost:8000
    ```
+
+### 🔐 Security Setup
+
+**CRITICAL:** Never commit your actual API keys to the repository!
+
+1. Copy `config.example.js` to `config.js`
+2. Replace the placeholder values with your actual EmailJS credentials:
+   - `EMAILJS_SERVICE_ID`
+   - `EMAILJS_TEMPLATE_ID` 
+   - `EMAILJS_CONTACT_TEMPLATE_ID`
+   - `EMAILJS_PUBLIC_KEY`
+3. The `config.js` file is already in `.gitignore` to prevent accidental commits
 
 ### File Structure
 
