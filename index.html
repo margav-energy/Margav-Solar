@@ -1,0 +1,1429 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MarGav Solar - Powering a Greener Future for UK Homes</title>
+      <meta
+        name="description"
+        content="Expert consultancy and installation of solar panels, and battery storage solutions for all types of UK properties."
+      />
+      
+      <!-- Favicon -->
+      <link rel="icon" type="image/x-icon" href="assets/favicon.ico">
+      <link rel="shortcut icon" type="image/x-icon" href="assets/favicon.ico">
+      <link rel="apple-touch-icon" href="assets/favicon.ico">
+      
+      <link rel="stylesheet" href="styles.css" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+    />
+    <!-- Configuration -->
+    <script src="config.js"></script>
+    
+    <!-- EmailJS -->
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+    
+    <!-- OpenStreetMap + Leaflet (Free Alternative) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script>
+      // Global variables for map functionality
+      let map;
+      let marker;
+      let userLocation = null;
+
+      // Initialize OpenStreetMap with Leaflet
+      function initializeMap() {
+        console.log('🗺️ Initializing OpenStreetMap with Leaflet...');
+        const mapContainer = document.getElementById('map-container');
+        const mapElement = document.getElementById('map');
+        const locationSearch = document.getElementById('location-search');
+        
+        if (!mapContainer || !mapElement || !locationSearch) {
+          console.warn('❌ Map elements not found');
+          return;
+        }
+        
+        console.log('✅ Map elements found, proceeding with initialization...');
+
+        // Show loading state
+        mapContainer.classList.add('loading');
+
+        try {
+          // Get user's current location
+          if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+              function(position) {
+                userLocation = [position.coords.latitude, position.coords.longitude];
+                initializeMapWithLocation();
+              },
+              function(error) {
+                console.warn('Geolocation error:', error);
+                // Fallback to UK center (London)
+                userLocation = [51.5074, -0.1278];
+                initializeMapWithLocation();
+              }
+            );
+          } else {
+            // Fallback to UK center
+            userLocation = [51.5074, -0.1278];
+            initializeMapWithLocation();
+          }
+        } catch (error) {
+          console.error('Map initialization error:', error);
+          mapContainer.classList.remove('loading');
+          mapContainer.classList.add('error');
+        }
+      }
+
+      function initializeMapWithLocation() {
+        const mapElement = document.getElementById('map');
+        const mapContainer = document.getElementById('map-container');
+        const locationSearch = document.getElementById('location-search');
+
+        if (!mapElement || !locationSearch) return;
+
+        // Initialize Leaflet map
+        map = L.map('map').setView(userLocation, 15);
+
+        // Add OpenStreetMap tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+          maxZoom: 19
+        }).addTo(map);
+
+        // Create draggable marker
+        marker = L.marker(userLocation, {
+          draggable: true,
+          title: 'Drag to select your property location'
+        }).addTo(map);
+
+        // Handle marker drag
+        marker.on('dragend', function(e) {
+          const position = e.target.getLatLng();
+          updateAddressFromCoordinates(position.lat, position.lng);
+        });
+
+        // Handle map click
+        map.on('click', function(e) {
+          marker.setLatLng(e.latlng);
+          updateAddressFromCoordinates(e.latlng.lat, e.latlng.lng);
+        });
+
+        // Handle search input
+        let searchTimeout;
+        locationSearch.addEventListener('input', function() {
+          clearTimeout(searchTimeout);
+          searchTimeout = setTimeout(() => {
+            const query = this.value.trim();
+            if (query.length > 3) {
+              searchLocation(query);
+            }
+          }, 500);
+        });
+
+        // Remove loading state
+        mapContainer.classList.remove('loading');
+        console.log('✅ OpenStreetMap initialized successfully!');
+      }
+
+      // Search for location using Nominatim (OpenStreetMap's geocoding service)
+      function searchLocation(query) {
+        console.log('🔍 Searching for:', query);
+        
+        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=gb&limit=1`)
+          .then(response => response.json())
+          .then(data => {
+            if (data && data.length > 0) {
+              const result = data[0];
+              const lat = parseFloat(result.lat);
+              const lng = parseFloat(result.lon);
+              
+              // Update map and marker
+              map.setView([lat, lng], 16);
+              marker.setLatLng([lat, lng]);
+              
+              // Update form fields
+              updateAddressAndCoordinates(lat, lng, result.display_name);
+              
+              console.log('✅ Location found:', result.display_name);
+            } else {
+              console.log('❌ No location found for:', query);
+            }
+          })
+          .catch(error => {
+            console.error('Search error:', error);
+          });
+      }
+
+      // Update address and coordinates
+      function updateAddressAndCoordinates(lat, lng, address) {
+        const propertyAddressInput = document.getElementById('property-address');
+        const latitudeInput = document.getElementById('latitude');
+        const longitudeInput = document.getElementById('longitude');
+
+        if (propertyAddressInput && address) {
+          propertyAddressInput.value = address;
+        }
+
+        if (latitudeInput && longitudeInput) {
+          latitudeInput.value = lat;
+          longitudeInput.value = lng;
+        }
+      }
+
+      // Update address from coordinates using reverse geocoding
+      function updateAddressFromCoordinates(lat, lng) {
+        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`)
+          .then(response => response.json())
+          .then(data => {
+            if (data && data.display_name) {
+              updateAddressAndCoordinates(lat, lng, data.display_name);
+            }
+          })
+          .catch(error => {
+            console.error('Reverse geocoding error:', error);
+          });
+      }
+      
+      // Initialize map when DOM is ready
+      document.addEventListener('DOMContentLoaded', function() {
+        console.log('🚀 DOM ready, initializing OpenStreetMap...');
+        initializeMap();
+      });
+    </script>
+  </head>
+  <body>
+    <!-- Header / Navigation -->
+    <header class="header" id="header">
+      <nav class="nav container">
+        <!-- Logo -->
+        <div class="nav__logo">
+          <a href="#home" class="nav__logo-link">
+            <img
+              src="assets/logo.png"
+              alt="MarGav Solar logo"
+              class="logo__img"
+            />
+          </a>
+        </div>
+
+        <!-- Navigation Menu -->
+        <ul class="nav__menu" id="nav-menu">
+          <li class="nav__item">
+            <a href="#home" class="nav__link active" data-translate="nav-home">Home</a>
+          </li>
+          <li class="nav__item">
+            <a href="#services" class="nav__link" data-translate="nav-services">Services</a>
+          </li>
+          <li class="nav__item">
+            <a href="#process" class="nav__link" data-translate="nav-process">Process</a>
+          </li>
+          <li class="nav__item">
+            <a href="#team" class="nav__link" data-translate="nav-team">Team</a>
+          </li>
+          <li class="nav__item">
+            <a href="#calculator" class="nav__link" data-translate="nav-calculator">Request Quote</a>
+          </li>
+          <!-- <li class="nav__item">
+            <a href="#blog" class="nav__link" data-translate="nav-blog">Blog</a>
+          </li> -->
+          <!-- <li class="nav__item">
+            <a href="#testimonials" class="nav__link" data-translate="nav-case-studies">Case Studies</a>
+          </li> -->
+          <li class="nav__item">
+            <a href="#faq" class="nav__link" data-translate="nav-faq">FAQ</a>
+          </li>
+          <li class="nav__item">
+            <a href="#contact" class="nav__link" data-translate="nav-contact">Contact</a>
+          </li>
+        </ul>
+
+        <!-- Language Selector -->
+        <div class="nav__language">
+          <select class="language-selector" id="language-selector">
+            <option value="en">English</option>
+            <option value="es">Español</option>
+            <option value="fr">Français</option>
+            <option value="de">Deutsch</option>
+          </select>
+        </div>
+
+        <!-- Mobile Menu Toggle -->
+        <div class="nav__toggle" id="nav-toggle">
+          <i class="fas fa-bars"></i>
+        </div>
+      </nav>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero" id="home">
+      <div class="hero__container">
+        <div class="hero__content">
+          <h1 class="hero__title" data-translate="hero-title">Powering a Greener Future for UK Homes</h1>
+          <p class="hero__subtitle" data-translate="hero-subtitle">
+            Expert consultancy and installation of solar panels, and
+            battery storage solutions for all types of UK properties
+          </p>
+          <a href="#contact" class="btn btn--primary hero__cta" data-translate="hero-cta"
+            >Book a Free Consultation</a
+          >
+        </div>
+      </div>
+      <div class="hero__overlay"></div>
+    </section>
+
+    <!-- About Us Section -->
+    <section class="about section" id="about">
+      <div class="container">
+        <div class="about__container">
+          <div class="about__content">
+            <h2 class="section__title" data-translate="about-title">About MarGav Solar</h2>
+            <p class="about__description" data-translate="about-description">
+              At MarGav Solar, we believe every home should be an affordable, sustainable sanctuary. Our mission is to transform residential properties for homeowners and housing providers alike, delivering deep energy savings, lasting comfort, and a greener future.
+            </p>
+            <!-- <div class="about__stats">
+              <div class="stat">
+                <span class="stat__number">500+</span>
+                <span class="stat__label">Properties Transformed</span>
+              </div>
+              <div class="stat">
+                <span class="stat__number">15+</span>
+                <span class="stat__label">Years Experience</span>
+              </div>
+              <div class="stat">
+                <span class="stat__number">95%</span>
+                <span class="stat__label">Customer Satisfaction</span>
+              </div>
+            </div> -->
+          </div>
+          <div class="about__image">
+            <img
+              src="https://images.unsplash.com/photo-1560518883-ce09059eeffa?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80"
+              alt="Historic UK home with solar panels"
+              class="about__img"
+            />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Services Section -->
+    <section class="services section" id="services">
+      <div class="container">
+        <h2 class="section__title" data-translate="services-title">Our Services</h2>
+        <p class="section__subtitle">
+          Comprehensive energy solutions tailored for all UK properties
+        </p>
+
+        <div class="services__grid">
+          <!-- Solar Panels Card -->
+          <div class="service__card">
+            <div class="service__icon">
+              <i class="fas fa-solar-panel"></i>
+            </div>
+            <h3 class="service__title" data-translate="service-solar-title">Solar Panels</h3>
+            <p class="service__description" data-translate="service-solar-description">
+              High-efficiency solar panel systems designed for all UK property
+              types. Our installations preserve architectural integrity while
+              maximizing energy generation and return on investment.
+            </p>
+            <ul class="service__features">
+              <li data-translate="service-solar-feature1">Custom mounting solutions</li>
+              <li data-translate="service-solar-feature2">All property types expertise</li>
+              <li data-translate="service-solar-feature3">Industry leading warranties</li>
+            </ul>
+            <a href="#contact" class="btn btn--outline service__btn" data-translate="service-solar-learn-more"
+              >Learn More</a
+            >
+          </div>
+
+          <!-- Battery Storage Card -->
+          <div class="service__card">
+            <div class="service__icon">
+              <i class="fas fa-battery-full"></i>
+            </div>
+            <h3 class="service__title" data-translate="service-battery-title">Battery Storage</h3>
+            <p class="service__description" data-translate="service-battery-description">
+              Smart battery storage systems that store excess solar energy for
+              use during peak times, reducing reliance on the grid and
+              maximizing savings for any property type.
+            </p>
+            <ul class="service__features">
+              <li data-translate="service-battery-feature1">Lithium-ion technology</li>
+              <li data-translate="service-battery-feature2">Smart energy management</li>
+              <li data-translate="service-battery-feature3">Peak-time optimization</li>
+            </ul>
+            <a href="#contact" class="btn btn--outline service__btn" data-translate="service-battery-learn-more"
+              >Learn More</a
+            >
+          </div>
+
+          <!-- Boilers Card - COMMENTED OUT FOR VERIFICATION -->
+          <!--
+          <div class="service__card">
+            <div class="service__icon">
+              <i class="fas fa-fire"></i>
+            </div>
+            <h3 class="service__title" data-translate="service-boiler-title">Boilers</h3>
+            <p class="service__description" data-translate="service-boiler-description">
+              Energy-efficient boiler installations and upgrades for all
+              property types, ensuring optimal heating performance while
+              reducing energy consumption and costs.
+            </p>
+            <ul class="service__features">
+              <li>High-efficiency models</li>
+              <li>All property compatibility</li>
+              <li>Professional installation</li>
+              <li>Ongoing maintenance</li>
+            </ul>
+            <a href="#contact" class="btn btn--outline service__btn"
+              >Learn More</a
+            >
+          </div>
+          -->
+
+          <!-- EV Chargers Card -->
+          <div class="service__card">
+            <div class="service__icon">
+              <i class="fas fa-charging-station"></i>
+            </div>
+            <h3 class="service__title" data-translate="service-ev-title">EV Chargers</h3>
+            <p class="service__description" data-translate="service-ev-description">
+              Professional electric vehicle charging point installations for
+              residential and commercial properties, providing fast, safe, and
+              reliable charging solutions for the future of transportation.
+            </p>
+            <ul class="service__features">
+              <li data-translate="service-ev-feature1">Fast charging capabilities</li>
+              <li data-translate="service-ev-feature2">Smart charging technology</li>
+              <li data-translate="service-ev-feature3">OZEV approved installations</li>
+              <li data-translate="service-ev-feature4">Home and commercial solutions</li>
+            </ul>
+            <a href="#contact" class="btn btn--outline service__btn" data-translate="service-ev-learn-more"
+              >Learn More</a
+            >
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Process Section -->
+    <section class="process section" id="process">
+      <div class="container">
+        <h2 class="section__title" data-translate="process-title">Our Process</h2>
+        <p class="section__subtitle">
+          A streamlined journey from consultation to installation
+        </p>
+
+        <div class="process__timeline">
+          <div class="process__step">
+            <div class="process__number">1</div>
+            <div class="process__content">
+              <h3 class="process__title" data-translate="process-step1">Book Consultation</h3>
+              <p class="process__description" data-translate="process-step1-description">
+                Schedule a free, no-obligation consultation to discuss your
+                energy needs and property requirements.
+              </p>
+            </div>
+          </div>
+
+          <div class="process__step">
+            <div class="process__number">2</div>
+            <div class="process__content">
+              <h3 class="process__title" data-translate="process-step2">Property Assessment & Quotation</h3>
+              <p class="process__description" data-translate="process-step2-description">
+                Our experts conduct a thorough assessment of your property and
+                provide a detailed, personalized quotation.
+              </p>
+            </div>
+          </div>
+
+          <div class="process__step">
+            <div class="process__number">3</div>
+            <div class="process__content">
+              <h3 class="process__title" data-translate="process-step3">Custom Energy Plan</h3>
+              <p class="process__description" data-translate="process-step3-description">
+                We design a tailored energy solution that meets your specific
+                needs while respecting your property's character and
+                requirements.
+              </p>
+            </div>
+          </div>
+
+          <div class="process__step">
+            <div class="process__number">4</div>
+            <div class="process__content">
+              <h3 class="process__title" data-translate="process-step4">Professional Installation</h3>
+              <p class="process__description" data-translate="process-step4-description">
+                Our certified technicians carry out the installation with
+                minimal disruption to your daily routine.
+              </p>
+            </div>
+          </div>
+
+          <div class="process__step">
+            <div class="process__number">5</div>
+            <div class="process__content">
+              <h3 class="process__title" data-translate="process-step5">Aftercare & Support</h3>
+              <p class="process__description" data-translate="process-step5-description">
+                Ongoing maintenance and support to ensure your energy system
+                performs optimally for years to come.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Charitable Initiative Section -->
+    <section class="charity section" id="charity">
+      <div class="container">
+        <div class="charity__content">
+          <div class="charity__badge">
+            <span class="charity__icon">🤝</span>
+            <span class="charity__badge-text">Giving Back</span>
+          </div>
+          <h2 class="section__title" data-translate="charity-title">We Give Back with Every Installation</h2>
+          <p class="section__subtitle charity__description" data-translate="charity-description">
+            For every solar panel installed, we donate to Our Partner Charity, helping make a positive impact beyond energy savings.
+          </p>
+          <div class="charity__logo-container">
+            <!-- CHARITY_LOGO_URL can be configured here -->
+            <img src="" alt="Our Partner Charity" class="charity__logo" id="charity-logo" style="display: none;">
+          </div>
+          <a href="#impact" class="btn btn--primary charity__cta" data-translate="charity-learn-more">
+            Learn More About Our Impact
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Request Quote Section -->
+    <section class="calculator section" id="calculator">
+      <div class="container">
+        <h2 class="section__title" data-translate="calculator-title">Request Quote</h2>
+        <p class="section__subtitle">
+          Get an instant estimate for your energy solution
+        </p>
+
+        <div class="calculator__container">
+          <form class="calculator__form" id="calculator-form">
+            <div class="form__group">
+              <label class="form__label">Service Type</label>
+              <div class="service-selection-container">
+                <div class="service-option">
+                  <input type="checkbox" id="solar-panels" name="services" value="solar-panels">
+                  <label for="solar-panels" class="service-label">
+                    <span class="service-icon">☀️</span>
+                    Solar Panels
+                  </label>
+                </div>
+                <div class="service-option">
+                  <input type="checkbox" id="battery-storage" name="services" value="battery-storage">
+                  <label for="battery-storage" class="service-label">
+                    <span class="service-icon">🔋</span>
+                    Battery Storage
+                  </label>
+                </div>
+                <!-- Boiler Service - COMMENTED OUT FOR VERIFICATION -->
+                <!--
+                <div class="service-option">
+                  <input type="checkbox" id="boilers" name="services" value="boilers">
+                  <label for="boilers" class="service-label">
+                    <span class="service-icon">🔥</span>
+                    Boilers
+                  </label>
+                </div>
+                -->
+                <div class="service-option">
+                  <input type="checkbox" id="ev-chargers" name="services" value="ev-chargers">
+                  <label for="ev-chargers" class="service-label">
+                    <span class="service-icon">⚡</span>
+                    EV Chargers
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Contact Information -->
+            <div class="form__row">
+              <div class="form__group">
+                <label for="quote-name" class="form__label">Your Name *</label>
+                <input
+                  type="text"
+                  id="quote-name"
+                  name="quoteName"
+                  class="form__input"
+                  placeholder="Enter your full name"
+                  required
+                />
+              </div>
+              <div class="form__group">
+                <label for="quote-email" class="form__label">Email Address *</label>
+                <input
+                  type="email"
+                  id="quote-email"
+                  name="quoteEmail"
+                  class="form__input"
+                  placeholder="Enter your email address"
+                  required
+                />
+              </div>
+            </div>
+
+            <div class="form__group">
+              <label for="house-type" class="form__label">House Type</label>
+              <select id="house-type" class="form__select" required>
+                <option value="">Select house type</option>
+                <option value="detached">Detached</option>
+                <option value="semi-detached">Semi-detached</option>
+                <option value="terraced">Terraced</option>
+                <option value="flat">Flat</option>
+                <option value="bungalow">Bungalow</option>
+              </select>
+            </div>
+
+            <div class="form__group">
+              <label for="property-age" class="form__label"
+                >Age of Property</label
+              >
+              <select id="property-age" class="form__select" required>
+                <option value="">Select age range</option>
+                <option value="100+">100+ years (Historic)</option>
+                <option value="50-100">50-100 years</option>
+                <option value="25-50">25-50 years</option>
+                <option value="0-25">0-25 years (Modern)</option>
+              </select>
+            </div>
+
+            <!-- Dynamic options container -->
+            <div id="dynamic-options">
+              <!-- Options will be populated based on service selection -->
+            </div>
+
+            <div class="form__group">
+              <label for="energy-usage" class="form__label"
+                >Monthly Energy Usage (kWh) - Optional</label
+              >
+              <input
+                type="number"
+                id="energy-usage"
+                class="form__input"
+                placeholder="Enter monthly usage"
+              />
+            </div>
+
+            <button type="submit" class="btn btn--primary calculator__submit" data-translate="calculator-request-quote">
+              Request Quote
+            </button>
+          </form>
+
+          <div
+            class="calculator__result"
+            id="calculator-result"
+            style="display: none"
+          >
+            <h3 class="result__title">Quote Request Status</h3>
+            <div class="result__range" id="cost-range">
+              <!-- Quote request status will be populated by JavaScript -->
+            </div>
+            <p class="result__note">
+              *Our sales team will review your requirements and provide a personalized quote within 24 hours.
+            </p>
+            <a href="#contact" class="btn btn--primary"
+              >Contact Us Directly</a
+            >
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Blog Section - COMMENTED OUT FOR NOW -->
+    <!--
+    <section class="blog section" id="blog">
+      <div class="container">
+        <h2 class="section__title" data-translate="blog-title">Latest Insights</h2>
+        <p class="section__subtitle">
+          Stay informed about energy efficiency and renewable solutions
+        </p>
+
+        <div class="blog__grid">
+          <article class="blog__card">
+            <div class="blog__image">
+              <img
+                src="https://images.unsplash.com/photo-1509391366360-2e959784a276?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80"
+                alt="Solar panels on historic home"
+                class="blog__img"
+              />
+            </div>
+            <div class="blog__content">
+              <h3 class="blog__title">
+                Solar Panels for UK Homes: A Complete Guide
+              </h3>
+              <p class="blog__excerpt">
+                Discover how to install solar panels on any UK property while
+                preserving architectural character and maximizing energy
+                efficiency.
+              </p>
+              <a href="#" class="blog__link"
+                >Read More <i class="fas fa-arrow-right"></i
+              ></a>
+            </div>
+          </article>
+
+          <article class="blog__card">
+            <div class="blog__image">
+              <img
+                src="https://images.unsplash.com/photo-1558618666-fcd25c85cd64?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80"
+                alt="Battery storage system"
+                class="blog__img"
+              />
+            </div>
+            <div class="blog__content">
+              <h3 class="blog__title">
+                Maximizing Energy Storage in UK Properties
+              </h3>
+              <p class="blog__excerpt">
+                Learn about the best battery storage solutions for UK homes and
+                how to optimize your energy independence and savings.
+              </p>
+              <a href="#" class="blog__link"
+                >Read More <i class="fas fa-arrow-right"></i
+              ></a>
+            </div>
+          </article>
+
+          <!-- <article class="blog__card">
+            <div class="blog__image">
+              <img
+                src="https://images.unsplash.com/photo-1581092160562-40aa08e78837?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80"
+                alt="Energy efficient boiler"
+                class="blog__img"
+              />
+            </div>
+            <div class="blog__content">
+              <h3 class="blog__title">Upgrading Boilers in UK Properties</h3>
+              <p class="blog__excerpt">
+                Everything you need to know about modern boiler installations in
+                UK homes, including planning and compliance considerations.
+              </p>
+              <a href="#" class="blog__link"
+                >Read More <i class="fas fa-arrow-right"></i
+              ></a>
+            </div>
+          </article> -->
+
+          <!-- <article class="blog__card">
+            <div class="blog__image">
+              <img
+                src="https://images.unsplash.com/photo-1560518883-ce09059eeffa?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80"
+                alt="Green home transformation"
+                class="blog__img"
+              />
+            </div>
+            <div class="blog__content">
+              <h3 class="blog__title">
+                Case Study: Victorian Terrace Energy Transformation
+              </h3>
+              <p class="blog__excerpt">
+                See how we transformed a Victorian terrace into a modern,
+                energy-efficient home while preserving its character.
+              </p>
+              <a href="#" class="blog__link"
+                >Read More <i class="fas fa-arrow-right"></i
+              ></a>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section> -->
+    -->
+
+    <!-- Testimonials Section -->
+    <!-- Testimonials Section - COMMENTED OUT FOR NOW -->
+    <!--
+    <section class="testimonials section" id="testimonials">
+      <div class="container">
+        <h2 class="section__title" data-translate="testimonials-title">What Our Customers Say</h2>
+        <p class="section__subtitle">
+          Real experiences from homeowners across the UK
+        </p>
+
+        <div class="testimonials__grid">
+          <div class="testimonial__card">
+            <div class="testimonial__content">
+              <p class="testimonial__quote">
+                "MarGav Solar transformed our cottage into an energy-efficient
+                home. The team understood our specific requirements and
+                delivered exceptional results."
+              </p>
+            </div>
+            <div class="testimonial__author">
+              <div class="author__image">
+                <i class="fas fa-user-circle"></i>
+              </div>
+              <div class="author__info">
+                <h4 class="author__name">Sarah & James Mitchell</h4>
+                <p class="author__location">Cotswolds, Gloucestershire</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="testimonial__card">
+            <div class="testimonial__content">
+              <p class="testimonial__quote">
+                "The solar panel installation was seamless, and our energy bills
+                have reduced by 70%. The team's expertise really showed
+                throughout the process."
+              </p>
+            </div>
+            <div class="testimonial__author">
+              <div class="author__image">
+                <i class="fas fa-user-circle"></i>
+              </div>
+              <div class="author__info">
+                <h4 class="author__name">Robert Thompson</h4>
+                <p class="author__location">York, North Yorkshire</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="testimonial__card">
+            <div class="testimonial__content">
+              <p class="testimonial__quote">
+                "Outstanding service from consultation to installation. They
+                respected our home's character while modernizing our energy
+                systems. Highly recommended!"
+              </p>
+            </div>
+            <div class="testimonial__author">
+              <div class="author__image">
+                <i class="fas fa-user-circle"></i>
+              </div>
+              <div class="author__info">
+                <h4 class="author__name">Emma & David Wilson</h4>
+                <p class="author__location">Bath, Somerset</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+    -->
+
+    <!-- Team Section -->
+    <section class="team section" id="team">
+      <div class="container">
+        <h2 class="section__title" data-translate="team-title">Meet the Team</h2>
+        <p class="section__subtitle">
+          Experienced engineers and consultants dedicated to sustainable energy
+        </p>
+
+        <div class="team__cards">
+          <!-- Director 1 -->
+          <div class="card-client">
+            <div class="user-picture">
+              <svg viewBox="0 0 448 512" xmlns="http://www.w3.org/2000/svg">
+                <path d="M224 256c70.7 0 128-57.31 128-128s-57.3-128-128-128C153.3 0 96 57.31 96 128S153.3 256 224 256zM274.7 304H173.3C77.61 304 0 381.6 0 477.3c0 19.14 15.52 34.67 34.66 34.67h378.7C432.5 512 448 496.5 448 477.3C448 381.6 370.4 304 274.7 304z"></path>
+              </svg>
+            </div>
+            <p class="name-client">
+              Shaun Martin
+              <span>General Manager</span>
+            </p>
+            <p class="director-bio">
+              Shaun Martin, General Manager at Margav Energy, 34 years in and around the construction, facilities and renewable energy sector. Customer centric approach with broad experience, a keen eye for detail and strong problem solving skills. He delivers sustainable solutions that create lasting value in a rapidly evolving industry.
+            </p>
+            <div class="social-media">
+              <a href="https://www.linkedin.com/in/shaun-martin" target="_blank" rel="noopener noreferrer">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512">
+                  <path d="M100.28 448H7.4V148.9h92.88zM53.79 108.1C24.09 108.1 0 83.5 0 53.8a53.79 53.79 0 0 1 107.58 0c0 29.7-24.1 54.3-53.79 54.3zM447.9 448h-92.68V302.4c0-34.7-.7-79.2-48.29-79.2-48.29 0-55.69 37.7-55.69 76.7V448h-92.78V148.9h89.08v40.8h1.3c12.4-23.5 42.69-48.3 87.88-48.3 94 0 111.28 61.9 111.28 142.3V448z"></path>
+                </svg>
+                <span class="tooltip-social">LinkedIn</span>
+              </a>
+            </div>
+          </div>
+
+          <!-- Director 2 -->
+          <div class="card-client">
+            <div class="user-picture">
+              <svg viewBox="0 0 448 512" xmlns="http://www.w3.org/2000/svg">
+                <path d="M224 256c70.7 0 128-57.31 128-128s-57.3-128-128-128C153.3 0 96 57.31 96 128S153.3 256 224 256zM274.7 304H173.3C77.61 304 0 381.6 0 477.3c0 19.14 15.52 34.67 34.66 34.67h378.7C432.5 512 448 496.5 448 477.3C448 381.6 370.4 304 274.7 304z"></path>
+              </svg>
+            </div>
+            <p class="name-client">
+              Kelly Bugler
+              <span>Director</span>
+            </p>
+            <!-- <p class="director-bio">
+              Kelly Bugler brings extensive experience and expertise to the MarGav Energy team, contributing to our mission of delivering sustainable energy solutions across the UK.
+            </p> -->
+            <div class="social-media">
+              <a href="https://www.linkedin.com/in/kelly-bugler" target="_blank" rel="noopener noreferrer">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512">
+                  <path d="M100.28 448H7.4V148.9h92.88zM53.79 108.1C24.09 108.1 0 83.5 0 53.8a53.79 53.79 0 0 1 107.58 0c0 29.7-24.1 54.3-53.79 54.3zM447.9 448h-92.68V302.4c0-34.7-.7-79.2-48.29-79.2-48.29 0-55.69 37.7-55.69 76.7V448h-92.78V148.9h89.08v40.8h1.3c12.4-23.5 42.69-48.3 87.88-48.3 94 0 111.28 61.9 111.28 142.3V448z"></path>
+                </svg>
+                <span class="tooltip-social">LinkedIn</span>
+              </a>
+            </div>
+          </div>
+
+          <!-- Director 3 -->
+          <div class="card-client">
+            <div class="user-picture">
+              <svg viewBox="0 0 448 512" xmlns="http://www.w3.org/2000/svg">
+                <path d="M224 256c70.7 0 128-57.31 128-128s-57.3-128-128-128C153.3 0 96 57.31 96 128S153.3 256 224 256zM274.7 304H173.3C77.61 304 0 381.6 0 477.3c0 19.14 15.52 34.67 34.66 34.67h378.7C432.5 512 448 496.5 448 477.3C448 381.6 370.4 304 274.7 304z"></path>
+              </svg>
+            </div>
+            <p class="name-client">
+              Tom Marshall
+              <span>Director</span>
+            </p>
+            <p class="director-bio">
+              Tom Marshall, Director at Margav Energy, combines strategic leadership with a hands-on commitment to clients. He champions sustainable energy solutions while building lasting partnerships based on trust, collaboration, and measurable results.
+            </p>
+            <div class="social-media">
+              <a href="https://www.linkedin.com/in/tom-marshall" target="_blank" rel="noopener noreferrer">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512">
+                  <path d="M100.28 448H7.4V148.9h92.88zM53.79 108.1C24.09 108.1 0 83.5 0 53.8a53.79 53.79 0 0 1 107.58 0c0 29.7-24.1 54.3-53.79 54.3zM447.9 448h-92.68V302.4c0-34.7-.7-79.2-48.29-79.2-48.29 0-55.69 37.7-55.69 76.7V448h-92.78V148.9h89.08v40.8h1.3c12.4-23.5 42.69-48.3 87.88-48.3 94 0 111.28 61.9 111.28 142.3V448z"></path>
+                </svg>
+                <span class="tooltip-social">LinkedIn</span>
+              </a>
+            </div>
+          </div>
+
+          <!-- Director 4 -->
+          <div class="card-client">
+            <div class="user-picture">
+              <svg viewBox="0 0 448 512" xmlns="http://www.w3.org/2000/svg">
+                <path d="M224 256c70.7 0 128-57.31 128-128s-57.3-128-128-128C153.3 0 96 57.31 96 128S153.3 256 224 256zM274.7 304H173.3C77.61 304 0 381.6 0 477.3c0 19.14 15.52 34.67 34.66 34.67h378.7C432.5 512 448 496.5 448 477.3C448 381.6 370.4 304 274.7 304z"></path>
+              </svg>
+            </div>
+            <p class="name-client">
+              Matt Gavin
+              <span>Director</span>
+            </p>
+            <!-- <p class="director-bio">
+              Matt Gavin brings valuable expertise and leadership to the MarGav Energy team, contributing to our commitment to delivering innovative and sustainable energy solutions across the UK.
+            </p> -->
+            <div class="social-media">
+              <a href="https://www.linkedin.com/in/matt-gavin" target="_blank" rel="noopener noreferrer">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512">
+                  <path d="M100.28 448H7.4V148.9h92.88zM53.79 108.1C24.09 108.1 0 83.5 0 53.8a53.79 53.79 0 0 1 107.58 0c0 29.7-24.1 54.3-53.79 54.3zM447.9 448h-92.68V302.4c0-34.7-.7-79.2-48.29-79.2-48.29 0-55.69 37.7-55.69 76.7V448h-92.78V148.9h89.08v40.8h1.3c12.4-23.5 42.69-48.3 87.88-48.3 94 0 111.28 61.9 111.28 142.3V448z"></path>
+                </svg>
+                <span class="tooltip-social">LinkedIn</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Accreditations Section - COMMENTED OUT FOR VERIFICATION -->
+    <!--
+    <section class="accreditations section" id="accreditations">
+      <div class="container">
+        <h2 class="section__title" data-translate="accreditations-title">Accreditations & Partners</h2>
+        <p class="section__subtitle">
+          Certified by leading industry organizations
+        </p>
+
+        <div class="accreditations__grid">
+          <div class="accreditation__item">
+            <div class="accreditation__logo">
+              <i class="fas fa-certificate"></i>
+            </div>
+            <h3 class="accreditation__name">MCS Certified</h3>
+            <p class="accreditation__description">
+              Microgeneration Certification Scheme
+            </p>
+          </div>
+
+          <div class="accreditation__item">
+            <div class="accreditation__logo">
+              <i class="fas fa-shield-alt"></i>
+            </div>
+            <h3 class="accreditation__name">Ofgem Approved</h3>
+            <p class="accreditation__description">
+              Office of Gas and Electricity Markets
+            </p>
+          </div>
+
+          <div class="accreditation__item">
+            <div class="accreditation__logo">
+              <i class="fas fa-award"></i>
+            </div>
+            <h3 class="accreditation__name">ISO 9001</h3>
+            <p class="accreditation__description">Quality Management System</p>
+          </div>
+
+          <div class="accreditation__item">
+            <div class="accreditation__logo">
+              <i class="fas fa-handshake"></i>
+            </div>
+            <h3 class="accreditation__name">Trusted Partners</h3>
+            <p class="accreditation__description">
+              Leading manufacturers & suppliers
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+    -->
+
+    <!-- FAQ Section -->
+    <section class="faq section" id="faq">
+      <div class="container">
+        <h2 class="section__title" data-translate="faq-title">Frequently Asked Questions</h2>
+        <p class="section__subtitle">
+          Quick answers about our services and process
+        </p>
+
+        <div class="faq__list">
+          <div class="faq__item">
+            <button class="faq__question" aria-expanded="false">
+              How long does installation usually take?
+              <span class="faq__icon" aria-hidden="true"
+                ><i class="fas fa-chevron-down"></i
+              ></span>
+            </button>
+            <div class="faq__answer" hidden>
+              Most projects are completed within 1–3 days depending on system
+              size and property type.
+            </div>
+          </div>
+
+          <div class="faq__item">
+            <button class="faq__question" aria-expanded="false">
+              Do you work with historic or listed buildings?
+              <span class="faq__icon" aria-hidden="true"
+                ><i class="fas fa-chevron-down"></i
+              ></span>
+            </button>
+            <div class="faq__answer" hidden>
+              Yes. We tailor mounting and routing to preserve character and
+              comply with local planning guidance.
+            </div>
+          </div>
+
+          <!-- <div class="faq__item">
+            <button class="faq__question" aria-expanded="false">
+              Are you MCS certified and can I access incentives?
+              <span class="faq__icon" aria-hidden="true"
+                ><i class="fas fa-chevron-down"></i
+              ></span>
+            </button>
+            <div class="faq__answer" hidden>
+              We are MCS certified. Installations qualify for applicable UK
+              schemes and smart export tariffs.
+            </div>
+          </div> -->
+
+          <div class="faq__item">
+            <button class="faq__question" aria-expanded="false">
+              Do you provide warranties and aftercare?
+              <span class="faq__icon" aria-hidden="true"
+                ><i class="fas fa-chevron-down"></i
+              ></span>
+            </button>
+            <div class="faq__answer" hidden>
+              Yes. Equipment warranties up to 25 years, plus our workmanship
+              guarantee and ongoing support.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Contact Section -->
+    <section class="contact section" id="contact">
+      <div class="container">
+        <h2 class="section__title" data-translate="contact-title">Get In Touch</h2>
+        <p class="section__subtitle">
+          Ready to transform your property? Contact us for a free consultation
+        </p>
+
+        <div class="contact__container">
+          <div class="contact__info">
+            <h3 class="contact__title" data-translate="contact-info-title">Contact Information</h3>
+            <p class="contact__description" data-translate="contact-description">
+              We're here to help you make the switch to renewable energy. Get in
+              touch with our expert team for personalized advice and support.
+            </p>
+
+            <div class="contact__details">
+              <div class="contact__item">
+                <div class="contact__icon">
+                  <i class="fas fa-map-marker-alt"></i>
+                </div>
+                <div class="contact__content">
+                  <h4 data-translate="contact-address">Address</h4>
+                  <p>
+                    7-8, Kimberley Business Park<br />Kimberley Way, Rugeley
+                    WS15 1RE<br />United Kingdom
+                  </p>
+                </div>
+              </div>
+
+              <div class="contact__item">
+                <div class="contact__icon">
+                  <i class="fas fa-phone"></i>
+                </div>
+                <div class="contact__content">
+                  <h4 data-translate="contact-phone">Phone</h4>
+                  <p>01889 256069</p>
+                </div>
+              </div>
+
+              <!-- <div class="contact__item">
+                <div class="contact__icon">
+                  <i class="fas fa-envelope"></i>
+                </div>
+                <div class="contact__content">
+                  <h4 data-translate="contact-email">Email</h4>
+                  <p>sales@margav.energy</p>
+                </div>
+              </div> -->
+
+              <div class="contact__item">
+                <div class="contact__icon">
+                  <i class="fas fa-clock"></i>
+                </div>
+                <div class="contact__content">
+                  <h4 data-translate="contact-hours">Business Hours</h4>
+                  <p>Monday - Friday: 9:00 AM - 5:00 PM</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="contact__social">
+              <h4>Follow Us</h4>
+              <div class="social__links">
+                <a href="https://www.facebook.com/profile.php?id=61581971564867" class="social__link" aria-label="Facebook" target="_blank" rel="noopener noreferrer">
+                  <i class="fab fa-facebook-f"></i>
+                </a>
+                <a href="https://www.instagram.com/margav.solar/" class="social__link" aria-label="Instagram" target="_blank" rel="noopener noreferrer">
+                  <i class="fab fa-instagram"></i>
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <div class="contact__form-container">
+            <form class="contact__form" id="contact-form">
+              <h3 class="form__title" data-translate="contact-form-title">Send us a Message</h3>
+
+              <div class="form__row">
+                <div class="form__group">
+                  <label for="first-name" class="form__label"
+                    >First Name *</label
+                  >
+                  <input
+                    type="text"
+                    id="first-name"
+                    name="firstName"
+                    class="form__input"
+                    required
+                  />
+                </div>
+                <div class="form__group">
+                  <label for="last-name" class="form__label">Last Name *</label>
+                  <input
+                    type="text"
+                    id="last-name"
+                    name="lastName"
+                    class="form__input"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div class="form__row">
+                <div class="form__group">
+                  <label for="email" class="form__label">Email Address *</label>
+                  <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    class="form__input"
+                    required
+                  />
+                </div>
+                <div class="form__group">
+                  <label for="phone" class="form__label">Phone Number</label>
+                  <input
+                    type="tel"
+                    id="phone"
+                    name="phone"
+                    class="form__input"
+                  />
+                </div>
+              </div>
+
+
+              <!-- Location Search and Map -->
+              <div class="form__group">
+                <label for="location-search" class="form__label"
+                  >Search for your property location</label
+                >
+                <input
+                  type="text"
+                  id="location-search"
+                  class="form__input"
+                  placeholder="Type an address or postcode to search..."
+                />
+                <div id="map-container" class="map__container">
+                  <div id="map" class="map__element"></div>
+                </div>
+              </div>
+
+              <div class="form__group">
+                <label for="property-address" class="form__label"
+                  >Property Address *</label
+                >
+                <input
+                  type="text"
+                  id="property-address"
+                  name="propertyAddress"
+                  class="form__input"
+                  placeholder="Address will be filled automatically from map selection"
+                  required
+                  readonly
+                />
+                <!-- Hidden fields for coordinates -->
+                <input type="hidden" id="latitude" name="latitude" />
+                <input type="hidden" id="longitude" name="longitude" />
+              </div>
+
+              <div class="form__row">
+                <div class="form__group">
+                  <label for="property-type" class="form__label"
+                    >Property Type</label
+                  >
+                  <select
+                    id="property-type"
+                    name="propertyType"
+                    class="form__select"
+                  >
+                    <option value="">Select property type</option>
+                    <option value="detached">Detached House</option>
+                    <option value="semi-detached">Semi-detached House</option>
+                    <option value="terraced">Terraced House</option>
+                    <option value="flat">Flat/Apartment</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div class="form__group">
+                  <label for="property-age" class="form__label"
+                    >Property Age</label
+                  >
+                  <select
+                    id="property-age"
+                    name="propertyAge"
+                    class="form__select"
+                  >
+                    <option value="">Select age range</option>
+                    <option value="100+">100+ years (Historic)</option>
+                    <option value="50-100">50-100 years</option>
+                    <option value="25-50">25-50 years</option>
+                    <option value="0-25">0-25 years (Modern)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form__group">
+                <label for="service-interest" class="form__label"
+                  >Service of Interest</label
+                >
+                <select
+                  id="service-interest"
+                  name="serviceInterest"
+                  class="form__select"
+                >
+                  <option value="">Select service</option>
+                  <option value="solar-panels">Solar Panels</option>
+                  <option value="battery-storage">Battery Storage</option>
+                  <!-- <option value="boiler-upgrade">Boiler Upgrade</option> -->
+                  <option value="full-consultation">
+                    Full Energy Consultation
+                  </option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              <div class="form__group">
+                <label for="message" class="form__label">Message *</label>
+                <textarea
+                  id="message"
+                  name="message"
+                  class="form__textarea"
+                  rows="5"
+                  placeholder="Tell us about your energy needs and any specific requirements..."
+                  required
+                ></textarea>
+              </div>
+
+              <div class="form__group">
+                <label class="checkbox__label">
+                  <input
+                    type="checkbox"
+                    name="privacy"
+                    class="checkbox__input"
+                    required
+                  />
+                  <span class="checkbox__text">
+                    I agree to the
+                    <a href="#" class="privacy__link">Privacy Policy</a> and
+                    consent to my data being processed *
+                  </span>
+                </label>
+              </div>
+
+              <button type="submit" class="btn btn--primary form__submit" data-translate="contact-send">
+                Send Message
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer" id="footer">
+      <div class="container">
+        <div class="footer__content">
+          <!-- Company Info -->
+          <div class="footer__section">
+            <div class="footer__logo">
+              <img
+                src="assets/logo.png"
+                alt="MarGav Solar logo"
+                class="logo__img"
+              />
+            </div>
+            <p class="footer__description">
+              Transforming UK properties of all types into energy-efficient,
+              sustainable homes through expert consultancy and professional
+              installation services.
+            </p>
+            <div class="footer__contact">
+              <div class="contact__item">
+                <i class="fas fa-map-marker-alt"></i>
+                <span
+                  >7-8, Kimberley Business Park, Kimberley Way, Rugeley WS15
+                  1RE</span
+                >
+              </div>
+              <div class="contact__item">
+                <i class="fas fa-phone"></i>
+                <span>01889 256069</span>
+              </div>
+              <div class="contact__item">
+                <i class="fas fa-envelope"></i>
+                <span>sales@margav.energy</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Links -->
+          <div class="footer__section">
+            <h3 class="footer__title" data-translate="footer-quick-links">Quick Links</h3>
+            <ul class="footer__links">
+              <li><a href="#home" class="footer__link">Home</a></li>
+              <li><a href="#services" class="footer__link">Services</a></li>
+              <li><a href="#process" class="footer__link">Our Process</a></li>
+              <li><a href="#team" class="footer__link">Team</a></li>
+              <li><a href="#faq" class="footer__link">FAQ</a></li>
+              <li><a href="#calculator" class="footer__link">Calculator</a></li>
+              <li><a href="#blog" class="footer__link">Blog</a></li>
+              <li><a href="#contact" class="footer__link">Contact</a></li>
+            </ul>
+          </div>
+
+          <!-- Services -->
+          <div class="footer__section">
+            <h3 class="footer__title" data-translate="footer-services">Services</h3>
+            <ul class="footer__links">
+              <li><a href="#services" class="footer__link">Solar Panels</a></li>
+              <li>
+                <a href="#services" class="footer__link">Battery Storage</a>
+              </li>
+              <!-- <li>
+                <a href="#services" class="footer__link">Boiler Installation</a>
+              </li> -->
+              <li>
+                <a href="#services" class="footer__link">Energy Consultancy</a>
+              </li>
+              <li><a href="#services" class="footer__link">Maintenance</a></li>
+            </ul>
+          </div>
+
+          <!-- Newsletter & Social -->
+          <div class="footer__section">
+            <h3 class="footer__title" data-translate="footer-stay-updated">Stay Updated</h3>
+            <p class="footer__newsletter-text">
+              Subscribe to our newsletter for energy efficiency tips and
+              updates.
+            </p>
+            <form class="newsletter__form">
+              <input
+                type="email"
+                placeholder="Enter your email"
+                class="newsletter__input"
+                required
+              />
+              <button type="submit" class="btn btn--primary newsletter__btn" data-translate="footer-subscribe">
+                Subscribe
+              </button>
+            </form>
+
+            <div class="footer__social">
+              <h4 class="social__title" data-translate="footer-follow-us">Follow Us</h4>
+              <div class="social__links">
+                <a href="https://www.facebook.com/profile.php?id=61581971564867" class="social__link" aria-label="Facebook" target="_blank" rel="noopener noreferrer">
+                  <i class="fab fa-facebook-f"></i>
+                </a>
+                <a href="https://www.instagram.com/margav.solar/" class="social__link" aria-label="Instagram" target="_blank" rel="noopener noreferrer">
+                  <i class="fab fa-instagram"></i>
+                </a>
+              </div>
+            </div>
+
+            <div class="footer__language">
+              <label for="footer-language" class="language__label" data-translate="footer-language"
+                >Language:</label
+              >
+              <select id="footer-language" class="language__select">
+                <option value="en">English</option>
+                <option value="es">Español</option>
+                <option value="fr">Français</option>
+                <option value="de">Deutsch</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="footer__bottom">
+          <div class="footer__copyright">
+            <p>&copy; 2024 MarGav Solar. All rights reserved.</p>
+          </div>
+          <div class="footer__legal">
+            <a href="#" class="legal__link">Privacy Policy</a>
+            <a href="#" class="legal__link">Terms of Service</a>
+            <a href="#" class="legal__link">Cookie Policy</a>
+          </div>
+        </div>
+      </div>
+    </footer>
+
+    <script src="script.js"></script>
+  </body>
+</html>
